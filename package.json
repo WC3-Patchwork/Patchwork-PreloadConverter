@@ -1,6 +1,6 @@
 {
   "name": "patchwork-preloadconverter",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "A specialized converter for handling preload (.pld) files.",
   "main": "./build/index.js",
   "bin": "./build/index.js",

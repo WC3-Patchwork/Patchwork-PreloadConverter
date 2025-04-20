@@ -1,10 +1,12 @@
-import { createReadStream, createWriteStream } from "fs";
+import { createReadStream } from "fs";
+import { writeFile } from "fs/promises";
 import { LoggerFactory } from "../logging/LoggerFactory";
 import { createInterface } from "readline";
+import { EOL } from "node:os";
 
 const log = LoggerFactory.createLogger("PreloadConverter");
 
-const preloadRegex = /call Preload\((?<content>.*)\)/gm;
+const preloadRegex = /call Preload\(\s*\"(?<content>.*)\"\s*\)/gm;
 
 async function extractPreloadLines(inputPath: string): Promise<string[]> {
     const fileStream = createReadStream(inputPath);
@@ -27,20 +29,21 @@ async function extractPreloadLines(inputPath: string): Promise<string[]> {
 
         lineNumber++;
     }
+    fileStream.close();
 
     return result;
 }
 
 function filterPreloadCalls(preloadLines: string[]): string[] {
-    return preloadLines.map(it => preloadRegex.exec(it)?.groups?.content).map(it => (it == null) ? "" : it);
+    return preloadLines.map(it => {
+        preloadRegex.lastIndex = 0;
+        const result = preloadRegex.exec(it)
+        return result?.groups?.content
+    }).map(it => (it == null) ? "" : it);
 }
 
-function writeLinesToFile(lines: string[], outputPath: string) {
-    const output = createWriteStream(outputPath);
-    for (const line in lines) {
-        output.write(line);
-        output.write('\n');
-    }
+async function writeLinesToFile(lines: string[], outputPath: string) {
+    await writeFile(outputPath, lines.join(EOL));
 }
 
 export const PreloadConverter = {
@@ -49,7 +52,7 @@ export const PreloadConverter = {
         const preloadLines = await extractPreloadLines(inputPath);
         log.info(`Found ${preloadLines.length} lines.`);
         const contentLines = filterPreloadCalls(preloadLines);
-        writeLinesToFile(contentLines, outputPath);
+        await writeLinesToFile(contentLines, outputPath);
         log.info(`Exported preload content to '${outputPath}'`);
     }
 }
