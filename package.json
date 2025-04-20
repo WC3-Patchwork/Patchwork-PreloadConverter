@@ -5,7 +5,7 @@
   "main": "./build/index.js",
   "bin": "./build/index.js",
   "scripts": {
-    "prebuild": "node generateProgramMetadata.js > src/metadata.ts",
+    "prebuild": "node generateProgramMetadata.js",
     "clean": "tsc --build --clean",
     "build": "npm run clean && tsc --build",
     "test": "echo \"Error: no test specified\" && exit 1"
