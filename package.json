@@ -1,6 +1,8 @@
 {
   "name": "patchwork-preloadconverter",
-  "version": "0.0.2",
+  "author": "InsanityAI",
+  "version": "0.0.3",
+  "license": "ISC",
   "description": "A specialized converter for handling preload (.pld) files.",
   "main": "./build/index.js",
   "bin": "./build/index.js",
@@ -18,8 +20,12 @@
     "Patchwork",
     "Pld"
   ],
-  "author": "InsanityAI",
-  "license": "ISC",
+  "files": [
+    "build",
+    "src",
+    "LICENSE.txt",
+    "README.md"
+  ],
   "devDependencies": {
     "@commander-js/extra-typings": "^13.1.0",
     "@eslint/create-config": "^0.4.5",
@@ -34,8 +40,9 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
+    "chokidar": "4.0.3",
     "commander": "13.1.0",
-    "directory-tree": "^3.5.2",
+    "directory-tree": "3.5.2",
     "source-map-support": "0.5.21",
     "tslog": "4.9.3"
   }

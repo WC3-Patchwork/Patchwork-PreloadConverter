@@ -7,9 +7,10 @@ import { ILogObj, Logger } from 'tslog'
 import { LoggerFactory } from './logging/LoggerFactory'
 import { PreloadConverter } from './converter/PreloadConverter'
 import { lstatSync, watch } from 'node:fs'
-import { mkdir } from 'node:fs/promises' 
+import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import directoryTree from 'directory-tree'
+import chokidar from 'chokidar';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-var-requires
 require('source-map-support').install()
@@ -70,21 +71,22 @@ program
     }
 
     if (watchForChanges) {
-      watch(input, { persistent: true, recursive: true }, async (eventType, filename) => {
-        if (eventType == "change") {
-          let inputPath;
-          let outputPath;
-          if (folderMode) {
-            inputPath = path.join(input, filename as string);
-            outputPath = path.join(output, path.relative(input, inputPath)).replace(path.extname(inputPath), outputFileExtension as string);
+      const resolvedOutputs = new Set();
+      const watcher = chokidar.watch(input, { persistent: true });
+      watcher.on('change', async (inputPath) => {
+        log.info("File change detected for: ", inputPath);
+
+        let outputPath;
+        if (folderMode) {
+          outputPath = path.join(output, path.relative(input, inputPath)).replace(path.extname(inputPath), outputFileExtension as string);
+          if (!resolvedOutputs.has(outputPath)){
+            resolvedOutputs.add(outputPath)
             await mkdir(path.dirname(outputPath), { recursive: true })
-          } else {
-            inputPath = input;
-            outputPath = output;
           }
-          log.info("File change detected for: ", inputPath);
-          await conversionAction(inputPath, outputPath);
+        } else {
+          outputPath = output;
         }
+        await conversionAction(inputPath, outputPath);
       });
     }
 
