@@ -1,0 +1,10 @@
+function PreloadFiles takes nothing returns nothing
+
+	call PreloadStart()
+	call Preload( "a = "b"" )
+	call Preload( "for i = 0, 3, 1 do" )
+	call Preload( "    print(a)" )
+	call Preload( "end" )
+	call PreloadEnd( 0.0 )
+
+endfunction

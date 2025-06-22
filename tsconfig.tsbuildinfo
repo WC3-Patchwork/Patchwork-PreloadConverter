@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/metadata.ts","./src/converter/PreloadConverter.ts","./src/logging/LoggerFactory.ts"],"version":"5.8.3"}
+{"root":["./src/index.ts","./src/metadata.ts","./src/converter/preloadconverter.ts","./src/logging/loggerfactory.ts"],"version":"5.8.3"}
