@@ -1,7 +1,8 @@
 {
   "name": "patchwork-preloadconverter",
+  "displayName": "Patchwork Preload File Converter",
   "author": "InsanityAI",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "ISC",
   "description": "A specialized converter for handling preload (.pld) files.",
   "main": "./build/index.js",

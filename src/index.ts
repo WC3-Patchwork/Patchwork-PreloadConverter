@@ -6,7 +6,7 @@ import { NAME, DESCRIPTION, VERSION } from './metadata'
 import { ILogObj, Logger } from 'tslog'
 import { LoggerFactory } from './logging/LoggerFactory'
 import { PreloadConverter } from './converter/PreloadConverter'
-import { lstatSync, watch } from 'node:fs'
+import { lstatSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import directoryTree from 'directory-tree'
@@ -20,11 +20,68 @@ let log: Logger<ILogObj>
 let watchForChanges = false;
 let skip = false;
 
-async function conversionAction(input: string, output: string) {
+async function protectedAction(input: string, output: string, action: (input: string, output: string) => Promise<void>) {
   try {
-    await PreloadConverter.convertPreloadFile(input, output);
+    await action(input, output);
   } catch (exception) {
     log.fatal(exception);
+  }
+}
+
+async function conversionAction(input: string, output: string, outputFileExtension: string | undefined, action: (input: string, output: string) => Promise<void>) {
+  let folderMode = false;
+
+  const inputFileStat = lstatSync(input, { throwIfNoEntry: false });
+  if (inputFileStat == null) {
+    throw new Error("Input file or directory doesn't exist!");
+  }
+
+  const outputFileStat = lstatSync(output, { throwIfNoEntry: false });
+  if (inputFileStat.isDirectory()) {
+    if (outputFileStat != null && !outputFileStat.isDirectory()) {
+      throw new Error("Input is a directory, output path exists and was identified as not a directory.");
+    }
+    if (!outputFileExtension) {
+      throw new Error("Input and output are directories, you must define a outputFileExtension!");
+    }
+    folderMode = true;
+  }
+
+  const resolvedOutputs = new Set();
+  if (watchForChanges) {
+    const watcher = chokidar.watch(input, { persistent: true });
+    watcher.on('change', async (inputPath) => {
+      log.info("File change detected for: ", inputPath);
+
+      let outputPath;
+      if (folderMode) {
+        outputPath = path.join(output, path.relative(input, inputPath)).replace(path.extname(inputPath), outputFileExtension as string);
+        const outputFolder = path.dirname(outputPath);
+        if (!resolvedOutputs.has(outputFolder)) {
+          resolvedOutputs.add(outputFolder);
+          await mkdir(outputFolder, { recursive: true });
+        }
+      } else {
+        outputPath = output;
+      }
+      await protectedAction(inputPath, outputPath, action);
+    });
+  }
+
+  if (!skip) {
+    if (folderMode) {
+      directoryTree(input, undefined, async (item, filePath, stats) => {
+        const outputPath = path.join(output, path.relative(input, filePath)).replace(path.extname(filePath), outputFileExtension as string);
+        const outputFolder = path.dirname(outputPath);
+        if (!resolvedOutputs.has(outputFolder)) {
+          resolvedOutputs.add(outputFolder);
+          await mkdir(outputFolder, { recursive: true });
+        }
+        await protectedAction(filePath, outputPath, action);;
+      })
+    } else {
+      await protectedAction(input, output, action);
+    }
   }
 }
 
@@ -52,55 +109,18 @@ program
   .addArgument(new Argument('<output>', 'output file or folder').argRequired())
   .addArgument(new Argument('<outputFileExtension>', 'output file extension required if input and output are folders').argOptional())
   .action(async (input: string, output: string, outputFileExtension: string | undefined) => {
-    let folderMode = false;
+    await conversionAction(input, output, outputFileExtension, PreloadConverter.parsePreloadFile);
+  });
 
-    const inputFileStat = lstatSync(input, { throwIfNoEntry: false });
-    if (inputFileStat == null) {
-      throw new Error("Input file or directory doesn't exist!");
-    }
-
-    const outputFileStat = lstatSync(output, { throwIfNoEntry: false });
-    if (inputFileStat.isDirectory()) {
-      if (outputFileStat != null && !outputFileStat.isDirectory()) {
-        throw new Error("Input is a directory, output path exists and was identified as not a directory.");
-      }
-      if (!outputFileExtension) {
-        throw new Error("Input and output are directories, you must define a outputFileExtension!");
-      }
-      folderMode = true;
-    }
-
-    if (watchForChanges) {
-      const resolvedOutputs = new Set();
-      const watcher = chokidar.watch(input, { persistent: true });
-      watcher.on('change', async (inputPath) => {
-        log.info("File change detected for: ", inputPath);
-
-        let outputPath;
-        if (folderMode) {
-          outputPath = path.join(output, path.relative(input, inputPath)).replace(path.extname(inputPath), outputFileExtension as string);
-          if (!resolvedOutputs.has(outputPath)){
-            resolvedOutputs.add(outputPath)
-            await mkdir(path.dirname(outputPath), { recursive: true })
-          }
-        } else {
-          outputPath = output;
-        }
-        await conversionAction(inputPath, outputPath);
-      });
-    }
-
-    if (!skip) {
-      if (folderMode) {
-        directoryTree(input, undefined, async (item, filePath, stats) => {
-          const outputPath = path.join(output, path.relative(input, filePath)).replace(path.extname(filePath), outputFileExtension as string);
-          await mkdir(path.dirname(outputPath), { recursive: true })
-          await conversionAction(filePath, outputPath);
-        })
-      } else {
-        await conversionAction(input, output);
-      }
-    }
+program
+  .command('text2pld')
+  .description('Compile any given file into a preload (.pld) file by wrapping each line in a \'Preload\' call and the entire file into a standard preload procedure.')
+  .addArgument(new Argument('<input>', 'input file or folder').argRequired())
+  .addArgument(new Argument('<output>', 'output file or folder').argRequired())
+  .addArgument(new Argument('<functionName>', 'preload file\'s main function name.').argRequired())
+  .addArgument(new Argument('<outputFileExtension>', 'output file extension required if input and output are folders').argOptional())
+  .action(async (input: string, output: string, functionName: string, outputFileExtension: string | undefined) => {
+    await conversionAction(input, output, outputFileExtension, (inputPath, outputPath) => PreloadConverter.compilePreloadFile(inputPath, outputPath, functionName));
   });
 
 program.parse();

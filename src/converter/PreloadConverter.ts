@@ -11,7 +11,6 @@ const preloadRegex = /call Preload\(\s*\"(?<content>.*)\"\s*\)/gm;
 async function extractPreloadLines(inputPath: string): Promise<string[]> {
     const fileStream = createReadStream(inputPath);
     const readLine = createInterface({ input: fileStream, crlfDelay: Infinity })
-    let lineNumber = 0;
     let startFound = false
     const result: string[] = [];
     for await (const line of readLine) {
@@ -26,8 +25,6 @@ async function extractPreloadLines(inputPath: string): Promise<string[]> {
         if (line.includes("PreloadStart")) {
             startFound = true
         }
-
-        lineNumber++;
     }
     fileStream.close();
 
@@ -42,17 +39,45 @@ function filterPreloadCalls(preloadLines: string[]): string[] {
     }).map(it => (it == null) ? "" : it);
 }
 
-async function writeLinesToFile(lines: string[], outputPath: string) {
-    await writeFile(outputPath, lines.join(EOL));
+async function writeLinesToFile(lines: string[], outputPath: string, eol: string) {
+    await writeFile(outputPath, lines.join(eol));
+}
+
+async function readFileLines(inputPath: string) {
+    const fileStream = createReadStream(inputPath);
+    const readLine = createInterface({ input: fileStream, crlfDelay: Infinity })
+    const result: string[] = [];
+    for await (const line of readLine) {
+        result.push(line);
+    }
+    return result;
+}
+
+function compilePreloadContent(preloadFunction: string, lines: string[]) {
+    const result: string[] = [];
+    result.push(`function ${preloadFunction} takes nothing returns nothing`);
+    result.push(`\tcall PreloadStart()`);
+    lines.forEach(it => result.push(`\tcall Preload("${it}")`));
+    result.push(`\tcall PreloadEnd(0.0)`);
+    result.push(`endfunction`);
+    return result
 }
 
 export const PreloadConverter = {
-    async convertPreloadFile(inputPath: string, outputPath: string) {
+    async parsePreloadFile(inputPath: string, outputPath: string) {
         log.info(`Converting '${inputPath}' to '${outputPath}'`);
         const preloadLines = await extractPreloadLines(inputPath);
         log.info(`Found ${preloadLines.length} lines.`);
-        const contentLines = filterPreloadCalls(preloadLines);
-        await writeLinesToFile(contentLines, outputPath);
+        await writeLinesToFile(filterPreloadCalls(preloadLines), outputPath, EOL);
         log.info(`Exported preload content to '${outputPath}'`);
+    },
+
+    async compilePreloadFile(inputPath: string, outputPath: string, preloadFunction: string) {
+        log.info(`Compiling '${inputPath}' to '${outputPath}'`);
+        const content = await readFileLines(inputPath);
+        log.info(`Found ${content.length} lines.`);
+        await writeLinesToFile(compilePreloadContent(preloadFunction, content), outputPath, '\r\n');
+        log.info(`Compiled file content into '${outputPath}' preload file.`)
+
     }
 }
